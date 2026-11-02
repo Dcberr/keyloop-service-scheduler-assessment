@@ -1,0 +1,47 @@
+spring:
+  main:
+    banner-mode: "off"
+  application:
+    name: service-scheduler
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5433/scheduler}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      initialization-fail-timeout: 10000
+      connection-timeout: 2000
+      validation-timeout: 1000
+      data-source-properties:
+        connectTimeout: 2
+        socketTimeout: 5
+        tcpKeepAlive: true
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+  flyway:
+    enabled: true
+    fail-on-missing-locations: true
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+server:
+  shutdown: graceful
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState
+
+logging:
+  structured:
+    format:
+      console: logstash
