@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!target/
+target/*
+!target/service-scheduler-0.0.1-SNAPSHOT.jar
+!scripts/
+scripts/*
+!scripts/docker/
+!scripts/docker/healthcheck.sh
