@@ -1,0 +1,843 @@
+openapi: 3.1.0
+info:
+  title: Unified Service Scheduler API
+  version: 0.2.0
+  description: M5 HTTP contract for Keyloop Scenario A. Local synthetic-data assessment
+    backend; authentication is out of scope. Examples use illustrative dates; executable
+    demos select future times.
+servers:
+- url: http://localhost:8080/api/v1
+  description: Local application server.
+security: []
+paths:
+  /dealerships:
+    get:
+      operationId: listDealerships
+      summary: List active dealerships
+      description: Sorted by ID ascending. Unknown parent returns 404; empty page
+        returns 200.
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - &id003
+        $ref: '#/components/parameters/Page'
+      - &id004
+        $ref: '#/components/parameters/Size'
+      responses:
+        '200':
+          description: Successful response.
+          headers:
+            X-Request-ID: &id001
+              description: Request correlation ID. Valid supplied values are echoed;
+                absent/invalid values are replaced by a generated UUID.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DealershipPage'
+              example:
+                items: []
+                page: 0
+                size: 20
+                totalElements: 0
+        '400': &id005
+          description: Malformed input, missing required fields, unknown write fields
+            or invalid pagination.
+          headers: &id002
+            X-Request-ID: *id001
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Invalid request
+                status: 400
+                detail: Malformed input, missing required fields, unknown write fields
+                  or invalid pagination.
+                instance: /api/v1/appointments
+                code: INVALID_REQUEST
+                requestId: request-001
+        '500': &id006
+          description: An unexpected server error occurred.
+          headers: *id002
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Internal server error
+                status: 500
+                detail: An unexpected server error occurred.
+                instance: /api/v1/appointments
+                code: INTERNAL_ERROR
+                requestId: request-001
+        '503': &id007
+          description: A database timeout, deadlock or temporary unavailability prevented
+            completion.
+          headers: *id002
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Temporarily unavailable
+                status: 503
+                detail: A database timeout, deadlock or temporary unavailability prevented
+                  completion.
+                instance: /api/v1/appointments
+                code: TEMPORARILY_UNAVAILABLE
+                requestId: request-001
+        default: &id008
+          description: Standard HTTP routing or content-negotiation error (including
+            405, 406 and 415). Uses INVALID_REQUEST; 405 includes Allow. Unknown resources
+            use RESOURCE_NOT_FOUND.
+          headers:
+            X-Request-ID:
+              schema:
+                type: string
+              description: Request correlation ID.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+  /dealerships/{id}/services:
+    get:
+      operationId: listDealershipServices
+      summary: List active services offered by a dealership
+      description: Sorted by ID ascending. Unknown parent returns 404; an existing
+        inactive dealership returns 422 SERVICE_NOT_BOOKABLE. Empty page returns 200.
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - name: id
+        in: path
+        required: true
+        schema: &id009
+          type: string
+          format: uuid
+      - *id003
+      - *id004
+      responses:
+        '200':
+          description: Successful response.
+          headers:
+            X-Request-ID: *id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicePage'
+              example:
+                items: []
+                page: 0
+                size: 20
+                totalElements: 0
+        '400': *id005
+        '404': &id010
+          description: A referenced resource or parent does not exist.
+          headers: *id002
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Resource not found
+                status: 404
+                detail: A referenced resource or parent does not exist.
+                instance: /api/v1/appointments
+                code: RESOURCE_NOT_FOUND
+                requestId: request-001
+        '500': *id006
+        '503': *id007
+        '422':
+          description: The existing dealership is inactive.
+          headers:
+            X-Request-ID:
+              description: Request correlation ID. Valid supplied values are echoed;
+                absent/invalid values are replaced by a generated UUID.
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Unprocessable request
+                status: 422
+                detail: The existing dealership is inactive.
+                instance: /api/v1/dealerships/00000000-0000-4000-8000-000000000003/services
+                code: SERVICE_NOT_BOOKABLE
+                requestId: request-001
+        default: *id008
+  /customers:
+    get:
+      operationId: listCustomers
+      summary: List synthetic demo customers
+      description: Sorted by ID ascending. Unknown parent returns 404; empty page
+        returns 200.
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - *id003
+      - *id004
+      responses:
+        '200':
+          description: Successful response.
+          headers:
+            X-Request-ID: *id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerPage'
+              example:
+                items: []
+                page: 0
+                size: 20
+                totalElements: 0
+        '400': *id005
+        '500': *id006
+        '503': *id007
+        default: *id008
+  /customers/{id}/vehicles:
+    get:
+      operationId: listCustomerVehicles
+      summary: List a customer’s vehicles
+      description: Sorted by ID ascending. Unknown parent returns 404; empty page
+        returns 200.
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - name: id
+        in: path
+        required: true
+        schema: *id009
+      - *id003
+      - *id004
+      responses:
+        '200':
+          description: Successful response.
+          headers:
+            X-Request-ID: *id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VehiclePage'
+              example:
+                items: []
+                page: 0
+                size: 20
+                totalElements: 0
+        '400': *id005
+        '404': *id010
+        '500': *id006
+        '503': *id007
+        default: *id008
+  /availability:
+    get:
+      operationId: checkAvailability
+      summary: Check availability for an exact interval
+      description: 'Advisory only; does not reserve resources. Unavailable capacity
+        returns 200 with available=false. Reason priority: OUTSIDE_OPENING_HOURS,
+        VEHICLE_UNAVAILABLE, NO_AVAILABLE_BAY, NO_AVAILABLE_TECHNICIAN. POST rechecks.
+        Encode + as %2B in timestamp offsets.'
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - name: customerId
+        in: query
+        required: true
+        schema: *id009
+      - name: vehicleId
+        in: query
+        required: true
+        schema: *id009
+      - name: dealershipId
+        in: query
+        required: true
+        schema: *id009
+      - name: serviceTypeId
+        in: query
+        required: true
+        schema: *id009
+      - name: startsAt
+        in: query
+        required: true
+        schema: &id013
+          type: string
+          format: date-time
+          description: RFC 3339 with Z or explicit offset. Nonzero seconds/fractions
+            produce 422; malformed or offset-free timestamps produce 400. Start must
+            be strictly after now and at most now + 30 elapsed days; checked again
+            after locks.
+      responses:
+        '200':
+          description: Successful response.
+          headers:
+            X-Request-ID: *id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Availability'
+              examples:
+                available:
+                  value:
+                    startsAt: '2026-11-10T02:00:00Z'
+                    endsAt: '2026-11-10T03:00:00Z'
+                    durationMinutes: 60
+                    dealershipTimeZone: Asia/Ho_Chi_Minh
+                    available: true
+                    checkedAt: '2026-11-01T14:00:00Z'
+                    reason: null
+                unavailable:
+                  value:
+                    startsAt: '2026-11-10T02:00:00Z'
+                    endsAt: '2026-11-10T03:00:00Z'
+                    durationMinutes: 60
+                    dealershipTimeZone: Asia/Ho_Chi_Minh
+                    available: false
+                    checkedAt: '2026-11-01T14:00:00Z'
+                    reason: NO_AVAILABLE_TECHNICIAN
+        '400': *id005
+        '404': *id010
+        '422': &id011
+          description: VEHICLE_CUSTOMER_MISMATCH, SERVICE_NOT_BOOKABLE or INVALID_BOOKING_TIME.
+            Nonzero seconds/fractions are business-time validation failures (422),
+            not malformed timestamp errors (400).
+          headers: *id002
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Unprocessable request
+                status: 422
+                detail: The requested start is not within the allowed booking horizon.
+                instance: /api/v1/appointments
+                code: INVALID_BOOKING_TIME
+                requestId: request-001
+        '500': *id006
+        '503': *id007
+        default: *id008
+  /appointments:
+    post:
+      operationId: createAppointment
+      summary: Create a confirmed appointment
+      description: Server assigns one bay and one qualified technician for the entire
+        [start,end) interval and calculates end time. Returns only after commit. No
+        holds, idempotency keys or automatic POST retries. On an uncertain response,
+        query history before retrying.
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      responses:
+        '400': *id005
+        '404': *id010
+        '409':
+          description: 'Capacity conflicts: OUTSIDE_OPENING_HOURS, VEHICLE_UNAVAILABLE,
+            NO_AVAILABLE_BAY, NO_AVAILABLE_TECHNICIAN; a named bay/technician constraint
+            violation maps to BOOKING_CONFLICT.'
+          headers: *id002
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Booking conflict
+                status: 409
+                detail: No free active bay is available for the complete interval.
+                instance: /api/v1/appointments
+                code: NO_AVAILABLE_BAY
+                requestId: request-001
+        '422': *id011
+        '500': *id006
+        '503': *id007
+        '201':
+          description: Committed appointment.
+          headers:
+            X-Request-ID: *id001
+            Location:
+              description: Relative URI /api/v1/appointments/{id} for the committed
+                appointment.
+              schema:
+                type: string
+                format: uri-reference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+              example: &id012
+                customerId: 00000000-0000-4000-8000-000000000001
+                vehicleId: 00000000-0000-4000-8000-000000000002
+                dealershipId: 00000000-0000-4000-8000-000000000003
+                serviceTypeId: 00000000-0000-4000-8000-000000000004
+                id: 00000000-0000-4000-8000-000000000005
+                technicianId: 00000000-0000-4000-8000-000000000006
+                serviceBayId: 00000000-0000-4000-8000-000000000007
+                startsAt: '2026-11-10T02:00:00Z'
+                endsAt: '2026-11-10T03:00:00Z'
+                durationMinutes: 60
+                dealershipTimeZone: Asia/Ho_Chi_Minh
+                status: CONFIRMED
+                createdAt: '2026-11-01T14:00:00Z'
+        default: *id008
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookingRequest'
+            example:
+              customerId: 00000000-0000-4000-8000-000000000001
+              vehicleId: 00000000-0000-4000-8000-000000000002
+              dealershipId: 00000000-0000-4000-8000-000000000003
+              serviceTypeId: 00000000-0000-4000-8000-000000000004
+              startsAt: '2026-11-10T09:00:00+07:00'
+    get:
+      operationId: listAppointments
+      summary: List appointment history
+      description: Customer is required, vehicle optional. Validate customer and optional
+        vehicle existence; missing gives 404. Existing vehicle owned by another customer
+        gives 422 VEHICLE_CUSTOMER_MISMATCH. Sort startsAt ascending, then ID ascending;
+        no date filter. Empty result is 200.
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - name: customerId
+        in: query
+        required: true
+        schema: *id009
+      - name: vehicleId
+        in: query
+        required: false
+        schema: *id009
+      - *id003
+      - *id004
+      responses:
+        '200':
+          description: Successful response.
+          headers:
+            X-Request-ID: *id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppointmentPage'
+              example:
+                items:
+                - *id012
+                page: 0
+                size: 20
+                totalElements: 1
+        '400': *id005
+        '404': *id010
+        '422':
+          description: The specified vehicle exists but does not belong to the specified
+            customer (VEHICLE_CUSTOMER_MISMATCH).
+          headers:
+            X-Request-ID:
+              description: Request correlation ID. Valid supplied values are echoed;
+                absent/invalid values are replaced by a generated UUID.
+              schema:
+                type: string
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              example:
+                type: about:blank
+                title: Vehicle customer mismatch
+                status: 422
+                detail: The specified vehicle does not belong to the specified customer.
+                instance: /api/v1/appointments
+                code: VEHICLE_CUSTOMER_MISMATCH
+                requestId: request-001
+        '500': *id006
+        '503': *id007
+        default: *id008
+  /appointments/{id}:
+    get:
+      operationId: getAppointment
+      summary: Retrieve a confirmed appointment
+      description: ''
+      parameters:
+      - $ref: '#/components/parameters/RequestId'
+      - name: id
+        in: path
+        required: true
+        schema: *id009
+      responses:
+        '200':
+          description: Successful response.
+          headers:
+            X-Request-ID: *id001
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+              example: *id012
+        '400': *id005
+        '404': *id010
+        '500': *id006
+        '503': *id007
+        default: *id008
+components:
+  schemas:
+    BookingRequest:
+      type: object
+      additionalProperties: false
+      required:
+      - customerId
+      - vehicleId
+      - dealershipId
+      - serviceTypeId
+      - startsAt
+      properties:
+        customerId: &id014
+          type: string
+          format: uuid
+        vehicleId: &id015
+          type: string
+          format: uuid
+        dealershipId: &id016
+          type: string
+          format: uuid
+        serviceTypeId: &id017
+          type: string
+          format: uuid
+        startsAt: *id013
+    Appointment:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - customerId
+      - vehicleId
+      - dealershipId
+      - serviceTypeId
+      - technicianId
+      - serviceBayId
+      - startsAt
+      - endsAt
+      - durationMinutes
+      - dealershipTimeZone
+      - status
+      - createdAt
+      properties:
+        id: *id009
+        customerId: *id014
+        vehicleId: *id015
+        dealershipId: *id016
+        serviceTypeId: *id017
+        technicianId: *id009
+        serviceBayId: *id009
+        startsAt: &id018
+          type: string
+          format: date-time
+          pattern: Z$
+          description: UTC timestamp ending in Z.
+        endsAt: *id018
+        durationMinutes:
+          type: integer
+          minimum: 1
+        dealershipTimeZone: &id019
+          type: string
+          minLength: 1
+        status:
+          const: CONFIRMED
+          type: string
+        createdAt: *id018
+    Availability:
+      type: object
+      additionalProperties: false
+      required:
+      - available
+      - startsAt
+      - endsAt
+      - durationMinutes
+      - dealershipTimeZone
+      - checkedAt
+      - reason
+      properties:
+        available:
+          type: boolean
+        startsAt: *id018
+        endsAt: *id018
+        durationMinutes:
+          type: integer
+          minimum: 1
+        dealershipTimeZone: *id019
+        checkedAt: *id018
+        reason:
+          type:
+          - string
+          - 'null'
+          enum:
+          - null
+          - OUTSIDE_OPENING_HOURS
+          - VEHICLE_UNAVAILABLE
+          - NO_AVAILABLE_BAY
+          - NO_AVAILABLE_TECHNICIAN
+      allOf:
+      - if:
+          properties:
+            available:
+              const: true
+        then:
+          properties:
+            reason:
+              type: 'null'
+        else:
+          properties:
+            reason:
+              type: string
+              enum:
+              - OUTSIDE_OPENING_HOURS
+              - VEHICLE_UNAVAILABLE
+              - NO_AVAILABLE_BAY
+              - NO_AVAILABLE_TECHNICIAN
+    Dealership:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - timeZone
+      properties:
+        id: *id009
+        name: *id019
+        timeZone: *id019
+    Service:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - name
+      - durationMinutes
+      properties:
+        id: *id009
+        name: *id019
+        durationMinutes:
+          type: integer
+          minimum: 1
+    Customer:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - displayName
+      properties:
+        id: *id009
+        displayName: *id019
+    Vehicle:
+      type: object
+      additionalProperties: false
+      required:
+      - id
+      - customerId
+      - vin
+      - make
+      - model
+      properties:
+        id: *id009
+        customerId: *id009
+        vin: *id019
+        make: *id019
+        model: *id019
+    DealershipPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Dealership'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+    ServicePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Service'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+    CustomerPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Customer'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+    VehiclePage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Vehicle'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+    AppointmentPage:
+      type: object
+      additionalProperties: false
+      required:
+      - items
+      - page
+      - size
+      - totalElements
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Appointment'
+        page:
+          type: integer
+          minimum: 0
+        size:
+          type: integer
+          minimum: 1
+          maximum: 100
+        totalElements:
+          type: integer
+          minimum: 0
+    Problem:
+      type: object
+      additionalProperties: false
+      required:
+      - type
+      - title
+      - status
+      - detail
+      - instance
+      - code
+      - requestId
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title: *id019
+        status:
+          type: integer
+          enum:
+          - 400
+          - 404
+          - 405
+          - 406
+          - 409
+          - 415
+          - 422
+          - 500
+          - 503
+        detail: *id019
+        instance:
+          type: string
+          format: uri-reference
+        code:
+          type: string
+          enum:
+          - INVALID_REQUEST
+          - RESOURCE_NOT_FOUND
+          - VEHICLE_CUSTOMER_MISMATCH
+          - SERVICE_NOT_BOOKABLE
+          - INVALID_BOOKING_TIME
+          - OUTSIDE_OPENING_HOURS
+          - VEHICLE_UNAVAILABLE
+          - NO_AVAILABLE_BAY
+          - NO_AVAILABLE_TECHNICIAN
+          - BOOKING_CONFLICT
+          - TEMPORARILY_UNAVAILABLE
+          - INTERNAL_ERROR
+        requestId: *id019
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+            - field
+            - message
+            properties:
+              field: *id019
+              message: *id019
+  parameters:
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+    Size:
+      name: size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    RequestId:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Optional correlation token. Only 1–128 ASCII letters, digits, dots,
+        underscores or hyphens are accepted for reuse; other values are replaced,
+        not rejected.
+      schema:
+        type: string
