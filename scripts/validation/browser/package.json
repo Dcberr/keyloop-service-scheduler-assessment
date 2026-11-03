@@ -1,0 +1,6 @@
+{
+  "name": "scheduler-browser-verification",
+  "private": true,
+  "type": "module",
+  "devDependencies": { "playwright": "1.62.1" }
+}
