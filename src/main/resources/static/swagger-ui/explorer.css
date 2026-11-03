@@ -1,0 +1,9 @@
+:root { color-scheme: light; }
+body { margin: 0; background: #f7f9fc; color: #172b46; font-family: system-ui, sans-serif; }
+header { padding: 28px max(24px, calc((100vw - 1420px)/2)); display: flex; justify-content: space-between; gap: 24px; align-items: center; background: #10263d; color: white; }
+.eyebrow { color: #91d9d2; letter-spacing: .14em; font-size: 12px; font-weight: 700; }
+h1 { margin: 8px 0; font-size: 30px; } header p { margin: 0; color: #d4dfeb; }
+nav { display: flex; gap: 16px; flex-wrap: wrap; } nav a { color: #a7eee5; }
+aside { max-width: 1380px; margin: 24px auto 0; padding: 16px 20px; border-left: 4px solid #b88b22; background: #fff8e5; line-height: 1.6; }
+footer { padding: 24px; text-align: center; font-size: 13px; } footer a { color: #146b68; }
+@media (max-width: 750px) { header { align-items: flex-start; flex-direction: column; } aside { margin: 16px; } }

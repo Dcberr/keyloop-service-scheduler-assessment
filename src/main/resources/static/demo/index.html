@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Service Scheduler · Live demo</title>
+  <link rel="stylesheet" href="demo.css">
+  <script src="demo.js" defer></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="index.html"><span class="brand-mark">S</span> Service Scheduler</a><nav aria-label="Documentation"><a href="/swagger-ui/index.html">Explore API ↗</a><a href="/openapi.yaml">OpenAPI contract</a></nav></header>
+<main>
+  <section class="intro"><div><p class="eyebrow">KEYLOOP · SCENARIO A</p><h1>One slot. Two requests.</h1><p class="lede">Check availability, confirm a booking, and see why the next request must check again.</p></div><span class="local-badge">Local assessment demo</span></section>
+  <div id="notice" class="notice" role="status" aria-live="polite">Start by loading the seeded customers, vehicles and services.</div>
+  <section class="panel" aria-labelledby="prepare-title">
+    <div class="section-heading"><div><p class="eyebrow">01 · PREPARE</p><h2 id="prepare-title">Choose the booking context</h2></div><button id="load" class="secondary">Load demo data</button></div>
+    <div class="form-grid">
+      <label>Customer<select id="customer" disabled><option value="">Load data first</option></select></label>
+      <label>Dealership<select id="dealer" disabled><option value="">Load data first</option></select></label>
+      <label>Service<select id="service" disabled><option value="">Select a dealership</option></select></label>
+    </div>
+    <p id="service-info" class="muted">Service duration and dealership time zone will appear here.</p>
+    <div class="time-row"><label class="time-field">Requested start <span class="hint">RFC 3339 with an explicit offset or Z</span><input id="start" type="text" placeholder="Use Find a shared slot, or enter a future timestamp" autocomplete="off" spellcheck="false" disabled></label><button id="find" class="secondary" disabled>Find a shared slot</button><button id="cancel" class="quiet" hidden>Cancel search</button></div>
+    <p class="muted small">Search checks up to 24 candidate times in the next 96 hours. The server decides whether each complete service interval is bookable.</p>
+  </section>
+  <section aria-labelledby="clients-title">
+    <div class="section-heading"><div><p class="eyebrow">02 · CHECK &amp; BOOK</p><h2 id="clients-title">Two vehicles, the same time</h2></div><button id="check" class="primary" disabled>Check both vehicles</button></div>
+    <p class="muted">Both requests use the context above. Check both, book A, then book B to demonstrate stale availability. A successful POST creates a real appointment.</p>
+    <div class="client-grid">
+      <article class="panel client" aria-labelledby="client-a-title"><div class="client-heading"><h3 id="client-a-title"><span class="client-letter">A</span> First request</h3><span id="badge-a" class="badge">Not checked</span></div><label>Vehicle A<select id="vehicle-a" disabled><option value="">Select a customer</option></select></label><p id="availability-a" class="availability">Check availability before presenting this request.</p><div class="actions"><button id="book-a" class="primary" disabled>Book vehicle A</button><button id="get-a" class="secondary" disabled>Retrieve A</button></div><details><summary>Request JSON</summary><textarea id="request-a" aria-label="Request JSON for vehicle A" readonly rows="8"></textarea><button id="copy-a" class="quiet" disabled>Copy request A</button></details><details id="result-a"><summary>Latest response A</summary><p id="response-meta-a" class="small muted">No response yet.</p><pre id="response-a">{}</pre></details></article>
+      <article class="panel client" aria-labelledby="client-b-title"><div class="client-heading"><h3 id="client-b-title"><span class="client-letter">B</span> Competing request</h3><span id="badge-b" class="badge">Not checked</span></div><label>Vehicle B<select id="vehicle-b" disabled><option value="">Select a customer</option></select></label><p id="availability-b" class="availability">Choose a different vehicle belonging to the same customer.</p><div class="actions"><button id="book-b" class="primary" disabled>Book vehicle B</button><button id="get-b" class="secondary" disabled>Retrieve B</button></div><details><summary>Request JSON</summary><textarea id="request-b" aria-label="Request JSON for vehicle B" readonly rows="8"></textarea><button id="copy-b" class="quiet" disabled>Copy request B</button></details><details id="result-b"><summary>Latest response B</summary><p id="response-meta-b" class="small muted">No response yet.</p><pre id="response-b">{}</pre></details></article>
+    </div>
+    <p class="principle"><strong>Availability is an observation, not a reservation.</strong> Booking checks capacity again inside its transaction. This page demonstrates sequential requests; database concurrency tests provide separate contention evidence.</p>
+  </section>
+  <section class="panel" aria-labelledby="history-title"><div class="section-heading"><div><p class="eyebrow">03 · VERIFY &amp; RECOVER</p><h2 id="history-title">Find the persisted appointments</h2></div><button id="history" class="secondary" disabled>Load customer history</button></div><p class="muted">If a POST response is lost, inspect history before deciding what happened. This page never automatically retries a booking.</p><div id="history-summary" role="status">No history loaded.</div><div class="table-scroll"><table><thead><tr><th>Appointment</th><th>Vehicle</th><th>Start (UTC)</th><th>Status</th></tr></thead><tbody id="history-rows"></tbody></table></div><div class="history-controls"><button id="previous" class="quiet" disabled>Previous page</button><span id="page-label">Page 1</span><button id="next" class="quiet" disabled>Next page</button></div><details><summary>History response</summary><p id="history-meta" class="small muted"></p><pre id="history-response">{}</pre></details></section>
+  <footer>Use synthetic local data. No authentication or administration is provided. Empty catalogs? Run <code>./scripts/demo/seed.sh</code> after application startup.</footer>
+</main>
+</body>
+</html>

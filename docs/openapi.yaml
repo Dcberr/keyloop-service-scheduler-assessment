@@ -1,18 +1,26 @@
 openapi: 3.1.0
 info:
   title: Unified Service Scheduler API
-  version: 0.2.0
-  description: M5 HTTP contract for Keyloop Scenario A. Local synthetic-data assessment
+  version: 0.2.1
+  description: HTTP contract for Keyloop Scenario A. Local synthetic-data assessment
     backend; authentication is out of scope. Examples use illustrative dates; executable
     demos select future times.
 servers:
-- url: http://localhost:8080/api/v1
-  description: Local application server.
+- url: /api/v1
+  description: Current application origin.
+tags:
+- name: Catalog
+  description: Discover customers, vehicles, dealerships and services.
+- name: Availability
+  description: Check capacity without reserving it.
+- name: Appointments
+  description: Create and retrieve confirmed bookings.
 security: []
 paths:
   /dealerships:
     get:
       operationId: listDealerships
+      tags: [Catalog]
       summary: List active dealerships
       description: Sorted by ID ascending. Unknown parent returns 404; empty page
         returns 200.
@@ -106,6 +114,7 @@ paths:
   /dealerships/{id}/services:
     get:
       operationId: listDealershipServices
+      tags: [Catalog]
       summary: List active services offered by a dealership
       description: Sorted by ID ascending. Unknown parent returns 404; an existing
         inactive dealership returns 422 SERVICE_NOT_BOOKABLE. Empty page returns 200.
@@ -175,6 +184,7 @@ paths:
   /customers:
     get:
       operationId: listCustomers
+      tags: [Catalog]
       summary: List synthetic demo customers
       description: Sorted by ID ascending. Unknown parent returns 404; empty page
         returns 200.
@@ -203,6 +213,7 @@ paths:
   /customers/{id}/vehicles:
     get:
       operationId: listCustomerVehicles
+      tags: [Catalog]
       summary: List a customer’s vehicles
       description: Sorted by ID ascending. Unknown parent returns 404; empty page
         returns 200.
@@ -236,6 +247,7 @@ paths:
   /availability:
     get:
       operationId: checkAvailability
+      tags: [Availability]
       summary: Check availability for an exact interval
       description: 'Advisory only; does not reserve resources. Unavailable capacity
         returns 200 with available=false. Reason priority: OUTSIDE_OPENING_HOURS,
@@ -322,6 +334,7 @@ paths:
   /appointments:
     post:
       operationId: createAppointment
+      tags: [Appointments]
       summary: Create a confirmed appointment
       description: Server assigns one bay and one qualified technician for the entire
         [start,end) interval and calculates end time. Returns only after commit. No
@@ -395,6 +408,7 @@ paths:
               startsAt: '2026-11-10T09:00:00+07:00'
     get:
       operationId: listAppointments
+      tags: [Appointments]
       summary: List appointment history
       description: Customer is required, vehicle optional. Validate customer and optional
         vehicle existence; missing gives 404. Existing vehicle owned by another customer
@@ -456,6 +470,7 @@ paths:
   /appointments/{id}:
     get:
       operationId: getAppointment
+      tags: [Appointments]
       summary: Retrieve a confirmed appointment
       description: ''
       parameters:
