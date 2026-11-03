@@ -2,13 +2,11 @@
 
 Backend implementation for **Keyloop Technical Assessment — Scenario A**.
 
-**Status:** M0–M6 P0 completed. REST API, packaged Compose application, persistence, recovery and observability are verified on real PostgreSQL. P1 benchmarking is deferred; M7 has not started.
-
 **Selected stack:** Java + Spring Boot + PostgreSQL.
 
 ## Design documents
 
-- [System Design Document](docs/system-design.md): scope, assumptions, architecture, data model, API, transaction/locking strategy, observability and design-phase GenAI use.
+- [System Design Document](docs/system-design.md): final architecture, assumptions, data model, API, locking strategy, observability and design-phase GenAI use.
 - [Implementation Plan](docs/implementation-plan.md): milestones, acceptance gates, test matrix and submission preparation.
 
 - [OpenAPI contract](docs/openapi.yaml)
@@ -21,15 +19,59 @@ Backend implementation for **Keyloop Technical Assessment — Scenario A**.
 - [M6 operations and observability evidence](docs/m6-results.md)
 - [Packaging and operations runbook](docs/operations.md)
 
+## Quick start: packaged application
+
+Run the following from the repository root (the directory containing `pom.xml`). Use a POSIX shell, JDK 21, Docker with Compose v2 and a running daemon, and Python 3.11+ with system IANA time-zone data. First-time setup needs network access for Maven and container images. A host Maven or PostgreSQL installation is unnecessary. On Windows, use WSL2 for the shell scripts; Windows execution has not been verified.
+
+```sh
+java -version
+docker version
+docker compose version
+python3 --version
+[ -f .env ] || cp .env.example .env
+./mvnw clean verify
+docker compose --profile app up --build -d --wait
+./scripts/demo/seed.sh
+python3 scripts/demo/client.py --output target/demo-http-samples.json
+```
+
+The default API URL is `http://localhost:8080/api/v1`. A successful demo prints two available observations, one `201` booking, retrieval, a `409 NO_AVAILABLE_TECHNICIAN` conflict, and history recovery. It creates one real appointment and retains it. It finds a new future slot on rerun; it does not replay a POST automatically. To stop while keeping data:
+
+```sh
+docker compose --profile app down
+```
+
+This path runs both services in Docker. The host-run alternative below is for development; stop a host application before starting the packaged app on the same port. The example password is for disposable local data; `.env` is ignored by Git. Change its password before first database initialization if needed; editing the variable later does not rotate an existing PostgreSQL user's password.
+
+## Live browser demo and Swagger UI
+
+After startup and seed, open:
+
+- **Guided demo:** <http://localhost:8080/demo/index.html>
+- **Swagger UI:** <http://localhost:8080/swagger-ui/index.html>
+- **OpenAPI contract:** <http://localhost:8080/openapi.yaml>
+
+Use your configured port if it differs from 8080. UI requests follow the current origin automatically. The pages and Swagger UI 5.34.1 assets are bundled in the executable JAR; no runtime CDN, separate frontend server or Node installation is required to run the application. Maven packages the canonical `docs/openapi.yaml` without a manually maintained duplicate.
+
+For the presentation, click **Load demo data → Find a shared slot → Check both vehicles → Book vehicle A → Book vehicle B → Retrieve A → Load customer history**. The standard seed selects Oil Change and two vehicles from the same customer. Keep the requested time unchanged between A and B. Point to the actual 201/409 responses, assignment IDs, request ID and Location. Availability text is a last observation, not a reservation. This is a sequential stale-availability demonstration; concurrent service/database tests provide separate evidence.
+
+The optional search samples 24 future times four hours apart within 96 hours, using at most 48 sequential availability GETs. Cancel is available. A failed search does not mean the full booking horizon is exhausted; enter an explicit-offset whole-minute timestamp to check another time.
+
+Swagger groups the eight operations into Catalog, Availability and Appointments. Expand an operation, click **Try it out**, fill its inputs and click **Execute**. For POST, prepare a fresh slot in the guided demo, expand **Request JSON**, and copy the actual request into Swagger. Static example IDs/dates are illustrative. Executing POST creates a real appointment; the two pages do not synchronize their observation state.
+
+The guided page blocks duplicate clicks while a request is pending and blocks replay of a successful or uncertain request in that page session. If the response is lost, inspect history before any deliberate retry. This is not server idempotency; refreshing the page clears its in-memory safeguards. All catalog discovery and history support pagination. No browser state is persisted to local storage.
+
+The Python client remains a command-line fallback.
+
 ## Build, run and test
 
 The backend, database schema, REST API and demo client are implemented. Milestone reports linked above record verification outcomes and known limits.
 
-Prerequisites: JDK 21, Docker with a running daemon, and network access on the first build. Maven 3.9.11 is downloaded by the committed wrapper.
+Versions: JDK 21, Spring Boot 4.1.2, PostgreSQL 18.1 and Maven Wrapper 3.9.11. Maven is downloaded by the checked-in wrapper. Docker Compose must support profiles and `up --wait`.
 
 ```sh
 ./mvnw test      # Unit tests
-./mvnw verify    # Unit tests, packaged application and real PostgreSQL integration test
+./mvnw verify    # Unit tests, packaged application and real PostgreSQL integration tests
 ```
 
 Integration tests start isolated PostgreSQL 18.1 containers; they fail rather than skip if Docker is unavailable. On macOS with Colima, start Colima and configure:
@@ -60,7 +102,7 @@ export DB_PASSWORD="$POSTGRES_PASSWORD"
 ./mvnw spring-boot:run
 ```
 
-The server defaults to port 8080. Check `/actuator/health/readiness` and `/actuator/health/liveness`. Startup applies the versioned Flyway schema; a missing migration location now fails startup. The REST API is available under `/api/v1`. Stop the database using `docker compose down` to retain the named volume. Deleting the volume deletes local database data.
+The server defaults to port 8080. Check `/actuator/health/readiness` and `/actuator/health/liveness`. Startup applies the versioned Flyway schema; a missing migration location fails startup. The REST API is available under `/api/v1`. Stop the host Java process with Ctrl-C and use `docker compose down` to retain the named volume. Deleting the volume deletes local database data.
 
 ## Demo data
 
@@ -80,7 +122,7 @@ Tests run through `./mvnw verify` and cover migration repeatability, each resour
 
 ## Availability and catalog services
 
-The REST controllers delegate to application services: `AvailabilityService.check` returns an advisory observation; `AvailabilityService.assess` also returns internal deterministic candidates for the future booking flow. `CatalogService` lists dealerships, services, customers and vehicles with pagination. These Spring-managed services are wired to the eight operations described by OpenAPI.
+The REST controllers delegate to application services: `AvailabilityService.check` returns an advisory observation; `AvailabilityService.assess` also returns internal deterministic candidates for booking. `CatalogService` lists dealerships, services, customers and vehicles with pagination. These Spring-managed services are wired to the eight operations described by OpenAPI.
 
 Availability evaluates the complete service interval, technician qualification/shift, bay, dealership opening window and vehicle conflicts. It writes no appointments and holds no resources. Business exceptions map to sanitized problem responses with HTTP status/code and request correlation. See the M3 report for tested rules and limitations.
 
@@ -90,11 +132,11 @@ Availability evaluates the complete service interval, technician qualification/s
 
 Default settings are `scheduler.booking.lock-timeout-ms=2000`, `scheduler.booking.statement-timeout-ms=3000` and `scheduler.booking.transaction-timeout-seconds=5`. Override these Spring properties when tuning the local environment. No automatic POST retry or idempotent replay is provided; an uncertain response after commit can be investigated through `GET /api/v1/appointments?customerId=...&vehicleId=...` before deciding whether to retry.
 
-The full verification suite currently includes 26 unit and 127 integration tests, including real HTTP/PostgreSQL checks and concurrency checks observing actual database lock waits. See the milestone reports for outcomes and limits.
+The full verification suite now includes 26 unit and 130 integration tests (156 total), including real HTTP/PostgreSQL checks, documentation-resource checks and concurrency checks observing actual database lock waits. Historical M7 results retain their 153-test total; the browser extension added three integration tests. See the milestone and browser reports for outcomes and limits.
 
 ## REST API and demo client
 
-Python 3.11+ is required for the demo and optional schema checks. Start the application/database and run the seed as above, then:
+Python 3.11+ is required for the command-line demo and optional schema checks; the browser UI does not require Python. Start the application/database and run the seed as above, then:
 
 ```sh
 python3 scripts/demo/client.py --output target/demo-http-samples.json
@@ -114,6 +156,19 @@ Use `--base-url http://localhost:8080/api/v1` to select a server explicitly. The
 | GET | /appointments?customerId=...&vehicleId=... |
 
 The OpenAPI document specifies fields, pagination and all errors. POST returns 201 and Location only after commit. Errors use application/problem+json and X-Request-ID; valid supplied request IDs are reused. UUIDs require canonical formatting, unknown write fields are rejected and timestamps are returned in UTC.
+
+Read-only examples for the default port:
+
+```sh
+curl -i http://localhost:8080/actuator/health/readiness
+curl -i -H 'X-Request-ID: reviewer-catalog-1' \
+  'http://localhost:8080/api/v1/dealerships?page=0&size=20'
+curl -i http://localhost:8080/actuator/metrics/scheduler.booking.requests
+```
+
+For a reproducible POST example, use the demo client above: it discovers real customer/vehicle/dealership/service IDs and selects an available date. Static JSON examples in OpenAPI illustrate the shape and are not promises that those dates or records are bookable. Requests require `customerId`, `vehicleId`, `dealershipId`, `serviceTypeId` and an offset-bearing `startsAt`; the server assigns resources and computes `endsAt`.
+
+Malformed input returns 400, unknown references 404, ownership/time/offering violations 422, unavailable capacity 409, transient database failures 503 and unexpected failures 500. Availability can return 200 with `available: false`; it never reserves resources. Catalogs/history use page 0 and size 20 by default, with a maximum size of 100.
 
 After `./mvnw verify`, optionally validate the captured real HTTP responses against OpenAPI:
 
@@ -151,16 +206,25 @@ Application logs are JSON with request correlation. Booking metrics distinguish 
 
 ## AI Collaboration Narrative
 
-During design, the assistant analyzed the supplied assessment, distinguished required behavior from proposed implementation decisions, consulted official Spring/PostgreSQL documentation, and drafted the linked documents. The engineer selected the backend layer and Java + Spring Boot + PostgreSQL.
+I used AI to draft the design and implementation, review transaction behavior, and develop tests. Two concrete corrections came out of review: booking conflict mapping now uses PostgreSQL constraint diagnostics rather than parsing error text, and the recovery verifier rediscovers the published port after an application restart. Real PostgreSQL integration tests and the packaged recovery checks provide the evidence for those changes.
 
-M0 used Lead, Architect, QA Engineer and Reviewer roles. Independent review caught a history-endpoint error example that schema validation alone did not catch; it was corrected and the contract revalidated. During M1, Backend created the scaffold, QA added independent tests, and Reviewer found a JDBC port mismatch with Compose. Backend corrected it; Lead integrated and ran Maven verify successfully (2 unit tests and 1 real PostgreSQL integration test, no skips). This section will be updated with actual review decisions, corrections and executed test results, with links to evidence, as the project progresses.
 
-M2 used Data Engineer, QA Engineer and Reviewer roles. Lead caught a session-timezone dependency in draft seed IDs; Data corrected it and QA verified cross-timezone reruns. QA also fixed a test-compilation ambiguity and a Colima startup-readiness race. Final integrated verification passed 2 unit and 39 integration tests with no skips; the actual seed runner succeeded twice on a separate disposable Compose database. See the M2 evidence report for details.
+## Troubleshooting
 
-M3 used Backend, QA and Reviewer roles to implement and independently verify read-only business rules. Review caught a long fractional-timestamp edge case, which was corrected and covered by regression tests. Integrated verification passed all 100 tests (24 unit and 76 PostgreSQL integration tests), with no skips.
+| Symptom | Check / action |
+|---|---|
+| Build reports an incompatible Java release | Point `JAVA_HOME` to JDK 21 and confirm `./mvnw -version`. The system Maven installation is not used. |
+| Docker/Testcontainers cannot connect | Start the Docker daemon; verify `docker version`. For Colima, export the two variables above. Integrations intentionally fail without PostgreSQL. |
+| First build or image pull fails offline | Allow dependency/image downloads, then retry. A cached build is not proof of an offline first installation. |
+| Port 8080 or 5433 is occupied | Stop the conflicting local service, or set `APP_PORT` / `POSTGRES_PORT` in `.env`. Pass the matching `--base-url` to the demo. Host Java uses `SERVER_PORT`, not `APP_PORT`. |
+| Demo sees empty catalogs | Wait for app readiness, then run `./scripts/demo/seed.sh` from this repository. Startup never inserts demo data. |
+| Demo finds no future slot | Re-run seed to extend the calendar. The demo assumes the standard synthetic data; Sundays and lunch breaks are closed. |
+| Database credentials changed but login still fails | Existing volumes retain the initialized PostgreSQL credentials. Restore the matching local configuration or deliberately administer that database; do not delete a shared volume. |
+| POST times out and outcome is unknown | Query appointment history for the customer and vehicle; do not automatically retry a potentially committed POST. |
+| Readiness is 503 | Inspect `docker compose --profile app ps` and app/database logs. Liveness can remain 200 during database failure. See the operations runbook. |
 
-M4 used Backend, QA and Reviewer roles for transactional booking. Review corrections preserved missing-reference error precedence and replaced human-message constraint parsing with structured PostgreSQL diagnostics, including a missing-diagnostic null guard. Lead integrated and verified all 121 tests; actual database lock waits, deferred commit failure and timeout tests support the transaction claims.
+## Scope and remaining work
 
-M5 used Backend, QA and Reviewer roles for REST/API validation. Lead settled standard protocol-error semantics, added a dynamic demo and a reusable response checker, then verified all 148 tests and actual HTTP captures. Review strengthened canonical UUID validation and the checker's protocol-error assertions. A packaged-JAR demo with fresh PostgreSQL and seed produced the expected creation, conflict and history recovery. See the M5 report for evidence.
+Fixed service durations, one bay plus one qualified technician, whole-minute start times, a 30-day elapsed booking horizon and read-only reference data are explicit assumptions. Bay/technician/vehicle overlaps are protected in PostgreSQL; per-dealership locking intentionally favors a simple correctness argument over peak write throughput.
 
-M6 used Backend, QA and Reviewer roles for packaging and observability. Lead ran a clean build and the isolated operational scenario; all 153 tests and nine runtime checks passed. QA corrected an ephemeral host-port assumption after preserving the initial failed restart check. Independent report review confirmed persistence, controlled outage responses, recovery without app restart, rollback and sanitized correlated logs. No benchmark claim is made.
+Authentication/authorization, cancellation/rescheduling, administration, idempotent POST replay, external tracing, load benchmarks, backup restoration and production failover are deferred. A customer ID is not authorization. The local API and Actuator endpoints must not be exposed publicly as a production service. A full customer frontend remains out of scope; Swagger UI, the guided browser page and the Python client provide demo harnesses for the selected backend layer.

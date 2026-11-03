@@ -3,8 +3,9 @@
 **Assessment:** Keyloop, Scenario A (Ownership)  
 **Implementation layer:** Backend; client represented by an API contract and demo requests  
 **Selected stack:** Java, Spring Boot, PostgreSQL  
-**Document date:** 2026-11-01  
-**Status:** Design baseline with M0–M6 P0 implemented and verified; see milestone reports. P1 benchmarking is deferred and M7 remains pending.
+**Document date:** 2026-11-01; finalized against implementation on 2026-11-03
+
+**Status:** Final implemented P0 architecture through M6, reviewed for M7 documentation, with a subsequent Swagger UI and guided browser harness extension. P1 benchmarking and remaining P2 features are deferred. Video preparation is documented separately; a script is not a recorded submission.
 
 ## 1. Purpose and assessment alignment
 
@@ -12,22 +13,21 @@ Build a REST API that confirms a vehicle service appointment only when one servi
 
 The source is the supplied **KeyloopCodingChallange.pdf**, Scenario A on pages 1–2, challenge structure on page 3, and deliverables/evaluation on page 4. The assessment permits reasonable documented assumptions and requires implementation of one service layer. This document treats the source as requirements for the submission, not as instructions to perform unrelated actions.
 
-| ID | Explicit assessment requirement | Planned evidence |
+| ID | Explicit assessment requirement | Implementation / deliverable evidence |
 |---|---|---|
-| R1 | Request a service for a specific vehicle, service type, dealership and desired time | POST appointment contract; successful end-to-end test |
-| R2 | Check a bay and a qualified technician for the entire service duration before confirmation | Availability query, transactional allocation, interval and concurrency tests |
-| R3 | Persist an appointment associating customer, vehicle, technician and bay | Database constraints; create/read and restart demonstration |
-| R4 | Backend exposes REST and uses persistent storage; client can be stubbed | Spring MVC API, PostgreSQL volume, OpenAPI document and cURL demo |
+| R1 | Request a service for a specific vehicle, service type, dealership and desired time | POST appointment contract; HttpContractIT availability/create/read flow ([M5](m5-results.md)) |
+| R2 | Check a bay and a qualified technician for the entire service duration before confirmation | AvailabilityRulesIT, BookingTransactionIT and direct exclusion tests ([M3](m3-results.md), [M4](m4-results.md)) |
+| R3 | Persist an appointment associating customer, vehicle, technician and bay | V1 constraints, create/read tests and packaged restart/recovery scenario ([M2](m2-results.md), [M6](m6-results.md)) |
+| R4 | Backend exposes REST and uses persistent storage; client can be stubbed | Eight Spring MVC operations, PostgreSQL volume, [OpenAPI](openapi.yaml) and Python HTTP demo client |
 | R5 | Explain architecture, components, data flow, technology and observability | Sections 4–10 |
-| R6 | Explain use of GenAI in design and verification | Section 13; eventual README AI Collaboration Narrative |
-| R7 | Runnable repository with build/run/test instructions and core business tests | Implementation plan and final README |
-| R8 | Submit a 5–10 minute video, including a 1–2 minute AI story | Demo outline in the implementation plan |
+| R6 | Explain use of GenAI in design and verification | Section 13, README AI Collaboration Narrative and milestone evidence |
+| R7 | Runnable repository with build/run/test instructions and core business tests | [README](../README.md), Maven Wrapper, real PostgreSQL tests and operational runbook |
 
 Double-booking protection, operational calendars and vehicle ownership checks are design decisions supporting correctness. They are not additional features explicitly enumerated by the assessment.
 
 ## 2. Scope
 
-### Included in the baseline
+### Implemented in the P0 baseline
 
 - Seeded customers, vehicles, dealerships, offered services, bays, technician qualifications and dated working windows.
 - Read-only discovery of dealerships, services, customers and customer vehicles for the demo.
@@ -41,7 +41,7 @@ Double-booking protection, operational calendars and vehicle ownership checks ar
 
 Authentication/authorization, admin CRUD, cancellation/rescheduling, notifications, payments, recurring booking, temporary holds, calendar UI, alternative-slot search, bay-specific equipment, multi-technician services, travel between dealerships and distributed deployment infrastructure.
 
-Idempotency keys and trace export are optional follow-up work. Their absence and consequences are documented below. Do not expand baseline scope before the correctness tests pass.
+Idempotency keys and trace export are optional follow-up work. Their absence and consequences are documented below. P1 performance measurement is also deferred; the proposed workload in section 8 is not an executed benchmark.
 
 ## 3. Assumptions and business rules
 
@@ -70,11 +70,11 @@ For intervals A and B, overlap means `A.start < B.end AND B.start < A.end`. Posi
 
 ## 4. Architecture and technology
 
-Use a modular monolith: one deployable Spring Boot application and one PostgreSQL database. Booking has a single transaction boundary; independent microservices would add coordination without helping the assessment scope.
+The implementation is a modular monolith: one deployable Spring Boot application and one PostgreSQL database. Booking has a single transaction boundary; independent microservices would add coordination without helping the assessment scope.
 
 ```mermaid
 flowchart LR
-    Client["OpenAPI contract / cURL demo"] --> HTTP["Spring MVC controllers and validation"]
+    Client["Browser demo / Swagger UI / Python client"] --> HTTP["Spring MVC controllers and validation"]
     HTTP --> Booking["Booking application service"]
     HTTP --> Query["Catalog and availability queries"]
     Booking --> Rules["Domain rules and injected Clock"]
@@ -89,32 +89,32 @@ flowchart LR
 | Choice | Purpose and reason |
 |---|---|
 | Java 21 | Explicit Java baseline; records for DTOs, `java.time` for temporal values |
-| Spring Boot 4.1.2 | Version shown as stable by the official requirements page when preparing this design; Java 21 is within its supported range [S1] |
+| Spring Boot 4.1.2 | Pinned parent in pom.xml; built and tested with Java 21. Compatibility reference consulted during design [S1] |
 | Spring MVC and Jakarta Validation | Synchronous request handling and boundary validation |
 | Spring JDBC (`JdbcClient`/`JdbcTemplate`) | Explicit, parameterized SQL for interval queries and row locks; avoids hiding the central allocation logic behind ORM behavior [S2] |
 | Spring transaction management | A single DataSource and transaction manager for all booking reads/writes |
-| PostgreSQL 18 | Relational integrity, durable appointments and interval exclusion constraints |
+| PostgreSQL 18.1 | Same postgres:18.1 patch tag in Compose and Testcontainers; relational integrity and interval exclusion constraints |
 | Flyway | Versioned SQL schema, indexes, extension and constraints; include PostgreSQL database support in the dependency set |
-| Maven Wrapper | Reproducible build; select and pin a Maven 3.9.x patch during scaffolding |
+| Maven Wrapper 3.9.11 | Pinned distribution in .mvn/wrapper/maven-wrapper.properties; no host Maven installation required |
 | JUnit Jupiter, AssertJ, Spring testing support, Testcontainers | Unit tests and integration tests against real PostgreSQL [S3] |
 | Actuator and Micrometer | Health endpoints and metrics; a path to tracing [S4] |
 | Docker Compose | Local application/database environment with a persistent database volume |
-| Static OpenAPI 3.1 document | Reviewable contract without requiring a documentation UI dependency |
+| OpenAPI 3.1 and Swagger UI 5.34.1 | Canonical contract packaged into the JAR and served to locally bundled interactive documentation |
 
-Use Spring Boot dependency management rather than independently selecting every transitive version. Pin the PostgreSQL container patch/digest and Maven wrapper distribution at implementation time; use the same database image in local development and integration tests. The dependency set and database image were resolved and tested during M1/M2; milestone reports record the actual environment.
+Spring Boot manages dependency versions; the PostgreSQL driver is available at compile time for typed server-error diagnostics. Compose and tests use the same PostgreSQL patch tag, not a database image digest. The application runtime base is digest-pinned in Dockerfile. Maven 3.9.11 and the dependency set were resolved and tested; milestone reports record actual environments and cache use. This is version pinning, not a claim of byte-identical builds.
 
 ### Package responsibilities
 
-Suggested root package: `com.keyloop.scheduler`.
+Actual root package: `com.keyloop.scheduler`.
 
-- `appointment`: controller, DTOs, booking service, appointment queries and repository.
-- `availability`: availability service, candidate queries and result/reason types shared with booking.
+- `api`: SchedulerController, API DTOs, canonical UUID parsing, problem responses and request correlation.
+- `appointment`: BookingService, transaction failure mapping, appointment record, persistence and history queries.
+- `availability`: reference validation, complete-interval resource queries and shared candidate/result/reason types.
 - `catalog`: read-only customers, vehicles, dealerships and services.
-- `schedule`: dated opening windows and technician shift access.
-- `shared`: interval value object, Clock configuration, error mapping and request correlation.
-- `config`: database, metrics and application wiring.
+- `shared`: BookingTimePolicy, ServiceInterval, Page and BusinessException.
+- `config`: replaceable UTC Clock wiring. Database, health, metrics and logging settings live in application.yaml.
 
-Keep HTTP types in controllers, SQL in repositories and booking policy in application/domain code. Introduce interfaces for real boundaries such as repositories and Clock; avoid generic CRUD frameworks or one interface per class.
+Opening windows and shifts are queried by AvailabilityRepository; no separate schedule package was needed. HTTP DTOs remain separate from persistence records. SQL stays in concrete repositories, and policy stays in application/domain code; there is no generic CRUD framework or unnecessary repository-interface layer.
 
 ## 5. Logical data model
 
@@ -171,7 +171,7 @@ V1 creates the tables and named constraints described here. Demo data is loaded 
 
 ### Indexes
 
-The exclusion constraints supply GiST indexes for overlap checks. Add B-tree indexes for dealership bay/technician membership, qualification lookup, opening-window/shift lookup, and appointment history `(customer_id, starts_at, id)` and `(vehicle_id, starts_at, id)`. Review query plans on representative data before adding duplicate indexes. Select candidate resources in SQL rather than fetching every appointment into Java.
+The exclusion constraints supply GiST indexes for overlap checks. V1 adds B-tree indexes for dealership bay/technician membership, service qualification lookup and appointment history `(customer_id, starts_at, id)` and `(vehicle_id, starts_at, id)`. Opening-window and shift uniqueness constraints already index owner/start/end, so duplicate indexes are omitted. Candidate resources are selected in SQL rather than fetching all appointments into Java. Query-plan tuning on the proposed representative workload remains unmeasured.
 
 ## 6. Availability and booking consistency
 
@@ -183,20 +183,20 @@ Return a boolean, calculated end time, `checkedAt` and a reason when unavailable
 
 ### Implemented M3 service baseline
 
-AvailabilityService and AvailabilityRepository implement the reference checks and single-statement resource assessment described above. Shared BookingTimePolicy, ServiceInterval and Page types implement temporal and pagination rules. CatalogService delegates discovery SQL to CatalogRepository. Public availability is advisory and exposes no resource IDs; internal assessment can carry candidates for future M4 revalidation. M5 now wires these services through separate HTTP DTOs and controllers. See [M3 results](m3-results.md) for real PostgreSQL verification and the timestamp-precision correction.
+AvailabilityService and AvailabilityRepository implement the reference checks and single-statement resource assessment described above. Shared BookingTimePolicy, ServiceInterval and Page types implement temporal and pagination rules. CatalogService delegates discovery SQL to CatalogRepository. Public availability is advisory and exposes no resource IDs; booking uses the internal candidate assessment after acquiring its locks. M5 now wires these services through separate HTTP DTOs and controllers. See [M3 results](m3-results.md) for real PostgreSQL verification and the timestamp-precision correction.
 
 ### Booking transaction
 
 Use PostgreSQL `READ COMMITTED` and acquire row locks in this order for every booking path:
 
-1. Lock the vehicle row by ID with `SELECT ... FOR UPDATE` and validate ownership.
+1. Lock the vehicle row by ID with `SELECT ... FOR UPDATE`; validate all reference existence before ownership and bookability, preserving 404 before 422 precedence.
 2. Lock the requested dealership row with `SELECT ... FOR UPDATE`.
 3. In subsequent statements, re-read the current time, validate reference data and operational windows, and query appointment conflicts/candidates.
 4. Choose the lowest-ID available active bay and the lowest-ID available active qualified technician whose shift contains the full interval. Because all bays support all offered services, independent selection of these two candidates is sufficient.
 5. Insert one confirmed appointment with the computed end time and duration snapshot.
 6. Commit before returning `201 Created`.
 
-All queries execute on the same transaction-bound connection. The transaction boundary belongs to a Spring-managed application service invoked through its proxy; avoid self-invocation that bypasses transaction interception. No external network calls run inside the transaction.
+All booking queries execute on the same transaction-bound connection. The Spring-managed BookingService explicitly owns a TransactionTemplate with READ_COMMITTED and REQUIRES_NEW; this boundary does not rely on @Transactional proxy interception. A caller transaction cannot later undo the independently committed booking. No external service calls run inside the transaction.
 
 The vehicle lock serializes bookings of the same vehicle across dealerships. The dealership lock serializes allocations at one dealership, so a waiting request sees the committed booking before selecting remaining resources. PostgreSQL row locks last until the transaction ends [S6]. Under Read Committed, subsequent statements obtain fresh snapshots; **the availability query must run after the lock-acquisition statement**, not as part of a pre-lock snapshot [S7].
 
@@ -229,9 +229,9 @@ sequenceDiagram
 
 - Insufficient resources or existing vehicle booking: rollback and return `409`.
 - Recognized overlap constraint violation: rollback and map the named constraint to a domain conflict. Do not continue querying inside an aborted transaction.
-- Unexpected integrity failures: return `500`, log the internal cause with request ID; do not label every database error as unavailable capacity.
+- Unexpected integrity failures: return `500` and a correlated, sanitized failure outcome; do not log raw SQL exceptions or label every database error as unavailable capacity.
 - Lock/statement timeout, deadlock or temporary database unavailability: rollback and return `503`. No unbounded retries and no automatic POST retries in the baseline.
-- Initial limits: lock wait 2 seconds, statement timeout 3 seconds, transaction timeout 5 seconds, HTTP request budget 10 seconds. They are configurable proposed values, to be exercised in integration tests and tuned after measurement.
+- Implemented default booking budgets: lock timeout 2 seconds, statement timeout 3 seconds and transaction timeout 5 seconds. Hikari acquisition/connect/socket limits are 2/2/5 seconds, with 1-second connection validation. Real lock and statement timeout tests prove controlled rollback. These settings do not establish a universal hard HTTP deadline; the previously proposed 10-second HTTP budget is not implemented. Load-based tuning is deferred.
 - A successful database commit followed by a lost HTTP response has an ambiguous client outcome. The client should query appointment history before retrying. Baseline duplicate submissions produce a vehicle conflict, not an idempotent replay response. Durable idempotency keys are a follow-up feature.
 
 Every code path that writes bookings must follow vehicle-then-dealership lock order. Future bulk booking or schedule-edit paths need their own ordered locking analysis. Database constraints are the final overlap safety net, not a substitute for all business validation.
@@ -241,6 +241,8 @@ Every code path that writes bookings must follow vehicle-then-dealership lock or
 BookingService uses a Spring TransactionTemplate with READ_COMMITTED and REQUIRES_NEW, so it owns commit before returning success even when a caller has an existing transaction. That caller cannot later roll back the independently committed booking. AppointmentRepository locks vehicle then dealership, reuses reference validation and runs a fresh availability/time assessment before insert. Success metrics/logging occur after commit. Structured PostgreSQL constraint diagnostics distinguish known conflicts from unexpected errors. See [M4 results](m4-results.md) for actual contention, rollback, timeout and ambient-transaction tests. M5 now maps these outcomes to HTTP and verifies them on a real server.
 
 ## 7. API contract
+
+The browser extension serves `/demo/index.html`, `/swagger-ui/index.html` and `/openapi.yaml`. Swagger uses the canonical packaged contract (version 0.2.1), with a relative `/api/v1` server and three operation tags. The small static demo harness uses existing APIs only; it adds no migration, resource-assignment logic or booking endpoint. Both browser pages use the same origin; Swagger assets and licenses are packaged locally. The original Python client remains available.
 
 Prefix: `/api/v1`. JSON field names use camelCase. Return UTC timestamps with `Z`. UUIDs identify resources. Reject unknown write fields such as a caller-supplied `endsAt`, `technicianId` or `serviceBayId`.
 
@@ -261,7 +263,7 @@ Availability query fields are `customerId`, `vehicleId`, `dealershipId`, `servic
 
 ### Contract clarifications
 
-The machine-readable contract is [OpenAPI 3.1](openapi.yaml), version 0.2.0, covering eight operations. These clarifications settle previously unspecified details without changing booking rules:
+The machine-readable contract is [OpenAPI 3.1](openapi.yaml), version 0.2.1, covering eight operations. These clarifications settle previously unspecified details without changing booking rules:
 
 - Catalog ordering is ID ascending; history is `startsAt` ascending, then ID ascending. Out-of-range pages return an empty 200 page.
 - History validates customer and optional vehicle existence (404); an existing vehicle belonging to another customer returns 422 `VEHICLE_CUSTOMER_MISMATCH`.
@@ -277,7 +279,7 @@ Separate API DTOs expose UTC strings and strict canonical UUID input. Controller
 
 ### Request and response examples
 
-The following IDs and dates illustrate the contract, not existing records. The executable demo will use seeded IDs and a dynamically selected future date.
+The following IDs and dates illustrate the contract, not existing records. The executable demo uses seeded IDs and a dynamically selected future date.
 
 ```json
 {
@@ -321,6 +323,7 @@ Use `application/problem+json` with `type`, `title`, `status`, `detail`, `instan
 | No active free bay | 409 `NO_AVAILABLE_BAY` | 200, false |
 | No active qualified on-shift free technician | 409 `NO_AVAILABLE_TECHNICIAN` | 200, false |
 | Named bay/technician exclusion constraint conflict | 409 `BOOKING_CONFLICT` | Not applicable to read |
+| Named vehicle exclusion constraint conflict | 409 `VEHICLE_UNAVAILABLE` | Not applicable to read |
 | Timeout, deadlock or unavailable database | 503 `TEMPORARILY_UNAVAILABLE` | Same |
 | Unexpected server/integrity failure | 500 `INTERNAL_ERROR` | Same |
 
@@ -332,7 +335,7 @@ If multiple resource checks fail, report in this order: opening window, vehicle 
 
 **Consistency:** One transaction inserts the complete appointment. A process failure before commit leaves no booking. A process failure after commit leaves a retrievable booking even if the HTTP response is lost.
 
-**Performance:** Filter by dealership, service, interval and active state in SQL. Use `NOT EXISTS` overlap checks against indexed appointment ranges. Avoid an O(bays × technicians) Cartesian candidate expansion under A3. Bound connection pools and request timeouts. Initial local pool size is 10, to be measured rather than assumed sufficient.
+**Performance:** Queries filter by dealership, service, interval and active state in SQL, using `NOT EXISTS` overlap checks against indexed appointment ranges. Independent bay/technician candidate selection avoids an O(bays × technicians) Cartesian expansion under A3. The local connection pool is bounded at 10; database/transaction budgets are described in section 6. Pool capacity and latency under load have not been measured.
 
 **Proposed measurement target, not a result:** On a documented machine, with 10 dealerships, 10 bays and 20 technicians per dealership, 10,000 seeded appointments, and 20 mixed requests/second for 60 seconds, target p95 below 500 ms and no unexpected 5xx under steady load. Record the read/write mix (initially 80/20), hardware and database image. Separately stress one dealership to expose lock contention. The correctness gates do not depend on achieving an invented throughput number.
 
@@ -348,8 +351,8 @@ Spring Boot integrates observations through Micrometer; the baseline uses struct
 
 - Generate or accept a length/character-validated request ID, return it in `X-Request-ID`, and add it to all request logs. Clear logging context after each request.
 - Log one final booking outcome after transaction completion with event, outcome, reason, elapsed time, request ID and appointment ID when successful. Never emit a success event before commit.
-- Log internal exceptions with request ID; omit customer names, VINs, request bodies and connection secrets.
-- Record `scheduler.booking.requests` with low-cardinality outcome/reason tags, `scheduler.booking.duration`, lock-wait duration, and database pool utilization. Do not use customer/vehicle/appointment IDs as metric labels.
+- Emit sanitized failure type/code and final outcome diagnostics with request ID; omit raw application SQL exceptions, customer names, VINs, request bodies and connection secrets.
+- Record `scheduler.booking.requests` for service invocations with bounded outcome/reason tags, `scheduler.booking.duration`, `scheduler.booking.lock.wait` for lock-acquisition SQL duration, and Hikari pool signals. DTO failures before service entry are represented by HTTP metrics/logs. The lock timer includes query/network overhead, not only database lock wait. Do not use customer/vehicle/appointment IDs as metric labels.
 - Expose liveness without a database dependency and readiness with database connectivity. Limit local Actuator exposure to health and required metrics; do not expose environment/configuration endpoints.
 - Initial investigation signals: elevated 5xx, database readiness failure, increasing lock waits or pool saturation. Capacity-related 409 responses are normal business outcomes; monitor them separately from infrastructure errors.
 - Optional tracing: HTTP request → booking operation → database work, with trace IDs in logs. Do not claim JDBC spans are automatic without configuring and verifying JDBC instrumentation.
@@ -360,12 +363,12 @@ The application emits structured JSON booking outcomes and request-completion ev
 
 ## 10. Local operation and data lifecycle
 
-- Compose runs PostgreSQL and, for the final demo, the packaged application. Support host-run Java for development as an alternative.
+- Compose runs PostgreSQL by default; its app profile adds the packaged application. Host-run Java remains supported as an alternative.
 - Configuration is externalized; commit `.env.example` with synthetic placeholders only. The demo binds to localhost.
-- Flyway schema migrations are environment-independent. Local seed execution is explicit and disabled in non-demo profiles.
+- Flyway schema migrations are environment-independent and run at application startup. Seed is a separate explicit Compose script, never an application startup hook. There is no profile-based seed guard; the operator must select the intended local Compose project.
 - Seed stable reference IDs, two dealerships, several services of different durations, general/specialist technicians, bays, customers and vehicles. Create opening windows and shifts for the next 45 local dates, including breaks and closed periods.
 - Seed execution is repeatable: insert missing reference data and windows without deleting appointments. Any destructive reset must be a separate explicit operation restricted to disposable data; no reset utility is currently provided.
-- Tests use an isolated PostgreSQL container and a fixed Clock, not the developer's database or wall clock.
+- Integration suites use isolated PostgreSQL containers; time-sensitive business tests inject a fixed or mutable Clock. The runtime demo uses the real Clock and dynamically selects future slots. Neither uses the developer's shared database for automated verification.
 - Preserve the volume when demonstrating persistence. Document separately that deleting the volume deletes all demo data.
 - Graceful shutdown stops accepting requests, allows bounded in-flight transactions to finish, and closes the connection pool.
 
@@ -377,7 +380,7 @@ Dockerfile packages the Maven-built JAR on a digest-pinned Java 21 JRE under UID
 
 | Layer | Main proof |
 |---|---|
-| Unit | Interval boundaries, duration arithmetic, time horizon, validation policies and reason selection |
+| Unit | Interval boundaries, duration arithmetic, time horizon, timestamp policies, Clock wiring and request MDC cleanup |
 | PostgreSQL integration | Migrations, composite foreign keys, exclusions, candidate queries, transaction rollback and lock behavior |
 | HTTP integration | Contract, status codes, problem response shape, availability/create/read consistency |
 | Concurrent integration | Same-dealership contention, resource exhaustion, same vehicle across dealerships, independent dealership progress |
@@ -389,7 +392,15 @@ The implementation plan contains the detailed test matrix. Critical concurrency 
 
 Use separate connections/transactions per concurrent worker and committed fixtures. Coordinate workers with barriers/latches, not arbitrary sleeps. Do not put a barrier after a lock that deliberately permits only one worker to enter. A test must fail on timeout rather than hang.
 
+### Executed evidence and limits
+
+The M6 integrated clean build passed **153 tests: 26 unit and 127 real PostgreSQL integration tests, zero failures/errors/skips**. Actual HTTP captures validated 74 operation responses plus two protocol errors against OpenAPI, with successful coverage of all eight operations. The isolated packaged operational scenario passed nine checks covering startup, non-root runtime, booking, restart persistence, database outage/recovery, deferred-commit rollback, metrics and correlated JSON logs. See [M6 results](m6-results.md) for the environment, commands, report paths and initial failed runner attempt.
+
+This is evidence for the local P0 behavior, not a performance or production certification. T32/P1 benchmarking, multi-instance load testing, loaded shutdown draining, backup restoration and production failover were not executed. Runtime evidence is generated under target and may be recreated using the [operations runbook](operations.md); milestone reports preserve the interpretation and limitations.
+
 ## 12. Decision record
+
+Post-M7 presentation decision: serve the checked-in contract directly through a pinned Swagger UI WebJar, preserving its detailed schemas/errors rather than introducing a second generated contract. A small browser harness adds catalog selection, bounded advisory search, explicit A/B booking and history recovery. In-memory duplicate-click protection is not server idempotency. These additions preserve D1–D11 and the booking transaction unchanged.
 
 | ID | Decision | Alternative / trade-off |
 |---|---|---|
@@ -405,29 +416,12 @@ Use separate connections/transactions per concurrent worker and committed fixtur
 | D10 | M4 uses REQUIRES_NEW booking transactions with explicit commit ownership | Success is returned after commit; a caller transaction cannot later undo a booking |
 | D11 | M5 preserves standard 405/406/415 HTTP errors as INVALID_REQUEST problems | OpenAPI protocol-status/default response alignment; 405 retains Allow; business statuses unchanged |
 
-These are proposed implementation decisions, not evidence of already-built behavior. The user has explicitly chosen the backend layer and Java + Spring Boot + PostgreSQL.
+D1–D11 describe implemented decisions, supported by the milestone reports and code. The user explicitly selected the backend layer and Java + Spring Boot + PostgreSQL; detailed implementation choices were developed and verified through the role workflow. Alternatives and deferred work are not claimed as implemented.
 
-## 13. GenAI collaboration during design
+## 13. Design review and verification
 
-### What has actually happened
+AI helped draft the design and identify edge cases in booking and recovery. The design was checked against the implementation, and the concurrency and rollback claims are backed by real PostgreSQL tests. See the README for concrete review findings and corrections.
 
-1. The user supplied the assessment and selected Topic A.
-2. The assistant read all four PDF pages, separated mandatory deliverables from suggested implementation choices, and identified full-duration resource availability and concurrent booking as key risks.
-3. The user chose the backend layer and then explicitly selected Java + Spring Boot + PostgreSQL.
-4. The assistant consulted official Spring and PostgreSQL documentation and drafted this design and the implementation plan.
-
-During M0, a role-specific Architect agent reviewed R1–R8 and A1–A16 and produced the OpenAPI baseline and D9 clarifications. R1–R4 map to the eight operations and planned persistence tests; R5–R6 remain covered by this design and collaboration evidence; R7–R8 remain later implementation/submission deliverables. A1–A16 are retained, including fixed durations, universal bay compatibility, immutable reference data and the elapsed-time horizon. No additional user decision is needed to implement this baseline.
-
-M1–M6 P0 subsequently implemented and verified the application foundation, schema, demo seed, business services, transactional booking, REST API, demo client, packaging and local operational behavior. Actual checks and corrections are recorded in [M1 results](m1-results.md), [M2 results](m2-results.md), [M3 results](m3-results.md), [M4 results](m4-results.md), [M5 results](m5-results.md) and [M6 results](m6-results.md). Performance results, production readiness and human approval of every detailed design choice are not claimed.
-
-### Planned collaboration and verification
-
-- Work in small vertical increments with explicit acceptance criteria, beginning with schema invariants and booking correctness.
-- Ask AI to explain transaction boundaries, race conditions and rejected alternatives before accepting generated code.
-- Review generated SQL, foreign keys, resource filters, time handling and error mapping manually.
-- Verify claims with real PostgreSQL tests, including adversarial concurrent requests and direct constraint checks.
-- Record actual corrections in an evidence log: task/prompt summary, proposal, issue discovered, change made, check executed and result. Do not invent a mistake or successful test for the narrative.
-- Keep the final README narrative concise and evidence-based. Include the engineer's rationale and ownership rather than a transcript of prompts.
 
 ## 14. References
 
