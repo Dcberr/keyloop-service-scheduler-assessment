@@ -211,10 +211,10 @@ sequenceDiagram
     Client->>API: POST /appointments
     API->>API: Validate request shape
     API->>Booking: Create appointment
-    Booking->>DB: BEGIN; lock vehicle; lock dealership
+    Booking->>DB: BEGIN, lock vehicle, lock dealership
     Booking->>DB: Validate and query current availability
     alt Eligible resources exist
-        Booking->>DB: INSERT appointment; COMMIT
+        Booking->>DB: INSERT appointment, COMMIT
         DB-->>Booking: Committed appointment
         Booking-->>API: Result
         API-->>Client: 201 and Location
