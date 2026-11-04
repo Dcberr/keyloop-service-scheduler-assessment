@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scheduler Architect"
+  short_description: "Keyloop scheduler architect workflow"
+  default_prompt: "Use $scheduler-architect for the assigned Keyloop scheduler milestone, following the project handoff contract."

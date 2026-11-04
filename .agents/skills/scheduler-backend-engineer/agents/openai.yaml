@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scheduler Backend Engineer"
+  short_description: "Keyloop scheduler backend engineer workflow"
+  default_prompt: "Use $scheduler-backend-engineer for the assigned Keyloop scheduler milestone, following the project handoff contract."

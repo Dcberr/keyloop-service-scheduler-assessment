@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scheduler QA Engineer"
+  short_description: "Keyloop scheduler qa engineer workflow"
+  default_prompt: "Use $scheduler-qa-engineer for the assigned Keyloop scheduler milestone, following the project handoff contract."

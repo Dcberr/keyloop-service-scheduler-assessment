@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scheduler Data Engineer"
+  short_description: "Keyloop scheduler data engineer workflow"
+  default_prompt: "Use $scheduler-data-engineer for the assigned Keyloop scheduler milestone, following the project handoff contract."

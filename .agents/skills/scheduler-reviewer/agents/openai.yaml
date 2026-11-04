@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scheduler Reviewer"
+  short_description: "Keyloop scheduler reviewer workflow"
+  default_prompt: "Use $scheduler-reviewer for the assigned Keyloop scheduler milestone, following the project handoff contract."

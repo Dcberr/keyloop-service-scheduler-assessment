@@ -1,0 +1,4 @@
+interface:
+  display_name: "Scheduler Lead / Coordinator"
+  short_description: "Keyloop scheduler lead workflow"
+  default_prompt: "Use $scheduler-lead for the assigned Keyloop scheduler milestone, following the project handoff contract."
